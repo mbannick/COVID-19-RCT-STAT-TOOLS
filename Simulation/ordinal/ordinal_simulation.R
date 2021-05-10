@@ -1,21 +1,30 @@
 #! /usr/bin/env Rscript
 
-# get environment variables
-STEPSIZE <- as.numeric(Sys.getenv('STEPSIZE'))
-TASKID <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
+PARALLEL <- FALSE
 
-# set defaults if nothing comes from environment variables
-STEPSIZE[is.na(STEPSIZE)] <- 1
-TASKID[is.na(TASKID)] <- 0
+if(PARALLEL){
+  # get environment variables
+  STEPSIZE <- as.numeric(Sys.getenv('STEPSIZE'))
+  TASKID <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
 
-# get command lines arguments
-args <- commandArgs(trailingOnly = TRUE)
-if(length(args) < 1){
-  stop("Not enough arguments. Please use args 'listsize', 'prepare', 'run <itemsize>' or 'merge'")
+  # set defaults if nothing comes from environment variables
+  STEPSIZE[is.na(STEPSIZE)] <- 1
+  TASKID[is.na(TASKID)] <- 0
+
+  # get command lines arguments
+  args <- commandArgs(trailingOnly = TRUE)
+  if(length(args) < 1){
+    stop("Not enough arguments. Please use args 'listsize', 'prepare', 'run <itemsize>' or 'merge'")
+  }
+} else {
+  STEPSIZE <- 2
+  TASKID <- 1
+  args <- c("run", 2)
 }
 
+
 ##############################################
-# !!!! set a directory for output to save !!!! 
+# !!!! set a directory for output to save !!!!
 ##############################################
 save_dir <- "~/"
 
@@ -24,7 +33,7 @@ ns <- c(100, 200, 500, 1000)
 seed <- 1:1000
 trt_effect <- c(0, 0.5, 1)
 dgp <- c(1, 3)
-parm <- expand.grid(n = ns, seed = seed, 
+parm <- expand.grid(n = ns, seed = seed,
                     trt_effect = trt_effect,
                     dgp = dgp)
 
@@ -40,7 +49,7 @@ make_data_1 <- function(n, tx_effect = 0){
   treat <- rbinom(n, 1, 1/2)
 
   # probability of death
-  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383, 
+  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383,
                          0.105409154, 0.165919283, 0.371062992)
   prob_death <- prob_death_by_age[age_grp]
 
@@ -52,7 +61,7 @@ make_data_1 <- function(n, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent <- prob_icu_given_age(age_vec = age_grp, tx = treat, 
+  prob_vent <- prob_icu_given_age(age_vec = age_grp, tx = treat,
                                    tx_effect = tx_effect)
 
   prob_nothing <- 1 - prob_death - prob_vent
@@ -61,11 +70,12 @@ make_data_1 <- function(n, tx_effect = 0){
   outcome <- apply(prob_matrix, 1, function(probs){
     sample(1:3, size = 1, replace = TRUE, prob = probs)
   })
-  
+
   return(list(out = outcome, covar = data.frame(age_grp = age_grp), treat = treat))
 }
 
 get_truth_1 <- function(n = 1e6, tx_effect){
+  browser()
   unif_var <- runif(n)
   age_grp <- as.numeric(cut(unif_var, c(0, 0.003848326, 0.192681847, 0.354730472, 0.520380178, 0.745410702, 0.888355056, 1), include.lowest = TRUE))
 
@@ -73,7 +83,7 @@ get_truth_1 <- function(n = 1e6, tx_effect){
   treat <- rbinom(n, 1, 1/2)
 
   # probability of death
-  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383, 
+  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383,
                          0.105409154, 0.165919283, 0.371062992)
   prob_death <- prob_death_by_age[age_grp]
 
@@ -86,13 +96,19 @@ get_truth_1 <- function(n = 1e6, tx_effect){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent1 <- prob_icu_given_age(age_vec = age_grp, tx = rep(1, n), 
+  prob_vent1 <- prob_icu_given_age(age_vec = age_grp, tx = rep(1, n),
                                    tx_effect = tx_effect)
-  prob_vent0 <- prob_icu_given_age(age_vec = age_grp, tx = rep(0, n), 
+  prob_vent0 <- prob_icu_given_age(age_vec = age_grp, tx = rep(0, n),
                                    tx_effect = tx_effect)
 
   prob_nothing1 <- 1 - prob_death - prob_vent1
   prob_nothing0 <- 1 - prob_death - prob_vent0
+
+  # Added these from get_truth_3, since they were missing
+  F0 <- c(mean(prob_death), mean(prob_death + prob_vent0), 1)
+  F1 <- c(mean(prob_death), mean(prob_death + prob_vent1), 1)
+  f_0 <- c(mean(prob_death), mean(prob_vent0), mean(prob_nothing0))
+  f_1 <- c(mean(prob_death), mean(prob_vent1), mean(prob_nothing1))
 
   # mann whitney
   F_0_kminus1 <- c(0, F0[-3])
@@ -105,7 +121,7 @@ get_truth_1 <- function(n = 1e6, tx_effect){
   mean_y1 <- sum((1:3)*f_1)
   mean_y0 <- sum((1:3)*f_0)
   wmean_truth <- mean_y1 - mean_y0
-  
+
   return(list(mann_whitney = mannwhitney_truth,
               log_odds = logodds_truth,
               weighted_mean = wmean_truth))
@@ -135,7 +151,7 @@ make_data_3 <- function(n, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent <- prob_icu_given_age(age_vec = age_grp, tx = treat, 
+  prob_vent <- prob_icu_given_age(age_vec = age_grp, tx = treat,
                                    tx_effect = tx_effect)
 
   prob_nothing <- 1 - prob_death - prob_vent
@@ -144,12 +160,12 @@ make_data_3 <- function(n, tx_effect = 0){
   outcome <- apply(prob_matrix, 1, function(probs){
     sample(1:3, size = 1, replace = TRUE, prob = probs)
   })
-  
+
   return(list(out = outcome, covar = data.frame(age_grp = age_grp), treat = treat))
 }
 
 get_truth_3 <- function(n = 1e6, tx_effect = 0){
-    # cut points of std normal to get cov dist.
+  # cut points of std normal to get cov dist.
   norm_cuts <- c(-Inf, -1.64267998, -0.41766186 , 0.03327091, 0.49144538, 1.06010333, 1.56493129, Inf)
   norm_var <- rnorm(n)
   age_grp <- as.numeric(cut(norm_var, norm_cuts, include.lowest = TRUE))
@@ -170,14 +186,14 @@ get_truth_3 <- function(n = 1e6, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent1 <- prob_icu_given_age(age_vec = age_grp, tx = 1, 
+  prob_vent1 <- prob_icu_given_age(age_vec = age_grp, tx = 1,
                                    tx_effect = tx_effect)
-  prob_vent0 <- prob_icu_given_age(age_vec = age_grp, tx = 0, 
+  prob_vent0 <- prob_icu_given_age(age_vec = age_grp, tx = 0,
                                    tx_effect = tx_effect)
 
   prob_nothing1 <- 1 - prob_death - prob_vent1
   prob_nothing0 <- 1 - prob_death - prob_vent0
-  
+
   F0 <- c(mean(prob_death), mean(prob_death + prob_vent0), 1)
   F1 <- c(mean(prob_death), mean(prob_death + prob_vent1), 1)
   f_0 <- c(mean(prob_death), mean(prob_vent0), mean(prob_nothing0))
@@ -196,7 +212,7 @@ get_truth_3 <- function(n = 1e6, tx_effect = 0){
   mean_y1 <- sum((1:3)*f_1)
   mean_y0 <- sum((1:3)*f_0)
   wmean_truth <- mean_y1 - mean_y0
-  
+
   return(list(mann_whitney = mannwhitney_truth,
               log_odds = logodds_truth,
               weighted_mean = wmean_truth))
@@ -224,7 +240,7 @@ if (args[1] == 'run') {
   for (i in (id+TASKID):(id+TASKID+STEPSIZE-1)) {
     print(paste(Sys.time(), "i:" , i))
     print(parm[i,])
-    
+
     # set seed
     set.seed(parm$seed[i])
 
@@ -233,21 +249,21 @@ if (args[1] == 'run') {
         if(trt_effect == 1){
           if(n == 100){
             return(-1.73)
-          }else if(n == 200){            
+          }else if(n == 200){
             return(-1.84)
-          }else if(n == 500){            
+          }else if(n == 500){
             return(-1.0)
-          }else{            
+          }else{
             return(-0.68)
           }
         }else if(trt_effect == 0.5){
-          if(n == 100){            
+          if(n == 100){
             return(-1.15)
-          }else if(n == 200){            
+          }else if(n == 200){
             return(-1.20)
-          }else if(n == 500){            
+          }else if(n == 500){
             return(-0.68)
-          }else{            
+          }else{
             return(-0.46)
           }
         }
@@ -262,6 +278,7 @@ if (args[1] == 'run') {
 
       # get truth
       set.seed(1234)
+      print(tx_eff)
       truth <- get_truth_1(n = 1e6, tx_effect = tx_eff)
     }else{
       get_tx_eff <- function(n, trt_effect){
@@ -322,11 +339,12 @@ if (args[1] == 'run') {
       treat_form = "1",
       param = c("weighted_mean", "mann_whitney", "log_odds"),
       ci = c("bca", "wald"),
-      nboot = 1e3, 
+      nboot = 1e3,
       stratify = TRUE,
       est_dist = FALSE
     )
 
+    # It's unclear whether this is used in the final paper
     in_ci <- function(ci, truth){
       truth < max(ci) & truth > min(ci)
     }
@@ -344,7 +362,7 @@ if (args[1] == 'run') {
                       in_ci(ci = rslt$mann_whitney$ci$wald, truth = truth$mann_whitney),
                        rslt$mann_whitney$ci$bca[1,],
                        in_ci(ci = rslt$mann_whitney$ci$bca[1,], truth = truth$mann_whitney))
-      
+
       wmean_out <- c(rslt$weighted_mean$est$est[1] - rslt$weighted_mean$est$est[2],
                      rslt$weighted_mean$ci$wald[3,],
                      in_ci(ci = rslt$weighted_mean$ci$wald[3,], truth = truth$weighted_mean),
@@ -352,9 +370,9 @@ if (args[1] == 'run') {
                      in_ci(ci = rslt$weighted_mean$ci$bca[3,], truth = truth$weighted_mean))
       return(c(logodds_out, mannwhitney_out, wmean_out))
     }
-   
 
-    out <- c(as.numeric(parm[i,]), unlist(truth), 
+
+    out <- c(as.numeric(parm[i,]), unlist(truth),
              format_out(rslt = rslt_adj),
              format_out(rslt = rslt_unadj))
 
@@ -391,7 +409,7 @@ if (args[1] == 'merge'){
 
   out <- data.frame(rslt)
   colnames(out) <- out_names
- 
+
   make_output_table <- function(out, estimand, ci, scale = TRUE){
     null_val <- if(estimand == "mannwhitney"){
       0.5
@@ -406,7 +424,7 @@ if (args[1] == 'merge'){
     out$logodds_adj_est[out$logodds_adj_est == -Inf] <- NA
     out$logodds_adj_est[out$logodds_adj_est == Inf] <- NA
     out$logodds_adj_est[out$logodds_adj_est == NaN] <- NA
-
+    browser()
     sample_size <- sort(rep(c(100, 200, 500, 1000), 6))
     est_type <- rep(c("Unadjusted", "Adjusted"), 12)
 
@@ -428,7 +446,7 @@ if (args[1] == 'merge'){
         mean(na.rm = TRUE, as.numeric(x[x$trt_effect == 1, paste0(estimand, "_unadj_", ci, "_cil")] > null_val |
                                       x[x$trt_effect == 1, paste0(estimand, "_unadj_", ci, "_ciu")] < null_val)),
         mean(na.rm = TRUE, as.numeric(x[x$trt_effect == 1, paste0(estimand, "_adj_", ci, "_cil")] > null_val |
-                                      x[x$trt_effect == 1, paste0(estimand, "_adj_", ci, "_ciu")] < null_val)))    
+                                      x[x$trt_effect == 1, paste0(estimand, "_adj_", ci, "_ciu")] < null_val)))
       }), use.names = FALSE)
 
     mse_col <- unlist(by(out, out$n, function(x){
@@ -458,7 +476,7 @@ if (args[1] == 'merge'){
         scale_factor*mean(na.rm = TRUE, (x[x$trt_effect == 1, paste0(estimand, "_unadj_est")] - x[x$trt_effect == 1, paste0(estimand, "_truth")])),
         scale_factor*mean(na.rm = TRUE, (x[x$trt_effect == 1, paste0(estimand, "_adj_est")] - x[x$trt_effect == 1, paste0(estimand, "_truth")])))
     }), use.names = FALSE)
-    
+
     var_col <- unlist(by(out, out$n, function(x){
       if(scale){
         scale_factor <- x$n[1]
@@ -491,29 +509,29 @@ if (args[1] == 'merge'){
   }
 
   # DIM BCA
-  print(xtable(tab_list_1[[6]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[6]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
   # MW BCA
-  print(xtable(tab_list_1[[4]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[4]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
   # LOR BCA
-  print(xtable(tab_list_1[[5]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[5]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
 
   # supplement Wald-based inference
-  print(xtable(tab_list_1[[3]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[3]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  
+
   # non-hospitalized results
   tab_list_3 <- vector(mode = "list", length = nrow(tab_parm))
   for(i in seq_len(nrow(tab_parm))){
@@ -522,25 +540,25 @@ if (args[1] == 'merge'){
 
 
   # DIM
-  print(xtable(tab_list_3[[6]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[6]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  print(xtable(tab_list_3[[3]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[3]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
 
   # MW
-  print(xtable(tab_list_3[[5]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[5]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  print(xtable(tab_list_3[[2]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[2]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
   # LOR
-  print(xtable(tab_list_3[[4]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[4]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
-  print(xtable(tab_list_3[[1]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_3[[1]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
 }

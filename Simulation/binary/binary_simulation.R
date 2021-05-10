@@ -1,30 +1,38 @@
 #! /usr/bin/env Rscript
 
+PARALLEL <- TRUE
+
 # get environment variables
-STEPSIZE <- as.numeric(Sys.getenv('STEPSIZE'))
-TASKID <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
+if(PARALLEL){
+  STEPSIZE <- as.numeric(Sys.getenv('STEPSIZE'))
+  TASKID <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
 
-# set defaults if nothing comes from environment variables
-STEPSIZE[is.na(STEPSIZE)] <- 1
-TASKID[is.na(TASKID)] <- 0
+  # set defaults if nothing comes from environment variables
+  STEPSIZE[is.na(STEPSIZE)] <- 1
+  TASKID[is.na(TASKID)] <- 0
 
-# get command lines arguments
-args <- commandArgs(trailingOnly = TRUE)
-if(length(args) < 1){
-  stop("Not enough arguments. Please use args 'listsize', 'prepare', 'run <itemsize>' or 'merge'")
+  # get command lines arguments
+  args <- commandArgs(trailingOnly = TRUE)
+  if(length(args) < 1){
+    stop("Not enough arguments. Please use args 'listsize', 'prepare', 'run <itemsize>' or 'merge'")
+  }
+} else {
+  STEPSIZE <- 2
+  TASKID <- 1
+  args <- c("run", 2)
 }
 
 ##############################################
-# !!!! set a directory for output to save !!!! 
+# !!!! set a directory for output to save !!!!
 ##############################################
-save_dir <- "~/"
+save_dir <- "/fh/scratch/delete30/gao_f/mbannick/output/"
 
 # parameters
 ns <- c(100, 200, 500, 1000)
 seed <- 1:1000
 trt_effect <- c(0, 0.5, 1)
 dgp <- c(1, 3)
-parm <- expand.grid(n = ns, seed = seed, 
+parm <- expand.grid(n = ns, seed = seed,
                     trt_effect = trt_effect,
                     dgp = dgp)
 
@@ -40,7 +48,7 @@ make_data_1 <- function(n, tx_effect = 0){
   treat <- rbinom(n, 1, 1/2)
 
   # probability of death
-  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383, 
+  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383,
                          0.105409154, 0.165919283, 0.371062992)
   prob_death <- prob_death_by_age[age_grp]
 
@@ -53,7 +61,7 @@ make_data_1 <- function(n, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent <- prob_vent_given_age(age_vec = age_grp, tx = treat, 
+  prob_vent <- prob_vent_given_age(age_vec = age_grp, tx = treat,
                                    tx_effect = tx_effect)
 
   prob_nothing <- 1 - prob_death - prob_vent
@@ -62,7 +70,7 @@ make_data_1 <- function(n, tx_effect = 0){
   outcome <- apply(prob_matrix, 1, function(probs){
     sample(1:3, size = 1, replace = TRUE, prob = probs)
   })
-  
+
   return(list(out = outcome, covar = data.frame(age_grp = age_grp), treat = treat))
 }
 
@@ -74,7 +82,7 @@ get_truth_1 <- function(n = 1e6, tx_effect){
   treat <- rbinom(n, 1, 1/2)
 
   # probability of death
-  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383, 
+  prob_death_by_age <- c(0.000000000, 0.008547009, 0.026262626, 0.079051383,
                          0.105409154, 0.165919283, 0.371062992)
   prob_death <- prob_death_by_age[age_grp]
 
@@ -87,20 +95,25 @@ get_truth_1 <- function(n = 1e6, tx_effect){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent1 <- prob_vent_given_age(age_vec = age_grp, tx = rep(1, n), 
+  prob_vent1 <- prob_vent_given_age(age_vec = age_grp, tx = rep(1, n),
                                    tx_effect = tx_effect)
-  prob_vent0 <- prob_vent_given_age(age_vec = age_grp, tx = rep(0, n), 
+  prob_vent0 <- prob_vent_given_age(age_vec = age_grp, tx = rep(0, n),
                                    tx_effect = tx_effect)
 
   prob_nothing1 <- 1 - prob_death - prob_vent1
   prob_nothing0 <- 1 - prob_death - prob_vent0
 
+  # get the probability of death + ventilator in comparison
+  # to nothing
+  f_0 <- c(mean(prob_death), mean(prob_vent0), mean(prob_nothing0))
+  f_1 <- c(mean(prob_death), mean(prob_vent1), mean(prob_nothing0))
+
   # weighted mean -- modified for binarization
   mean_y1 <- sum(c(1,1,0)*f_1)
   mean_y0 <- sum(c(1,1,0)*f_0)
   wmean_truth <- mean_y1 - mean_y0
-  
-  return(list(mann_whitney = mannwhitney_truth))
+
+  return(list(weighted_mean = wmean_truth))
 }
 
 # function to make data for non-hospitalized
@@ -128,7 +141,7 @@ make_data_3 <- function(n, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent <- prob_vent_given_age(age_vec = age_grp, tx = treat, 
+  prob_vent <- prob_vent_given_age(age_vec = age_grp, tx = treat,
                                    tx_effect = tx_effect)
 
   prob_nothing <- 1 - prob_death - prob_vent
@@ -137,7 +150,7 @@ make_data_3 <- function(n, tx_effect = 0){
   outcome <- apply(prob_matrix, 1, function(probs){
     sample(1:3, size = 1, replace = TRUE, prob = probs)
   })
-  
+
   return(list(out = outcome, covar = data.frame(age_grp = age_grp), treat = treat))
 }
 
@@ -163,14 +176,14 @@ get_truth_3 <- function(n = 1e6, tx_effect = 0){
     prob_vent <- plogis(intercept_by_age[age_vec] + tx_effect * tx)
     return(prob_vent)
   }
-  prob_vent1 <- prob_vent_given_age(age_vec = age_grp, tx = 1, 
+  prob_vent1 <- prob_vent_given_age(age_vec = age_grp, tx = 1,
                                    tx_effect = tx_effect)
-  prob_vent0 <- prob_vent_given_age(age_vec = age_grp, tx = 0, 
+  prob_vent0 <- prob_vent_given_age(age_vec = age_grp, tx = 0,
                                    tx_effect = tx_effect)
 
   prob_nothing1 <- 1 - prob_death - prob_vent1
   prob_nothing0 <- 1 - prob_death - prob_vent0
-  
+
   F0 <- c(mean(prob_death), mean(prob_death + prob_vent0), 1)
   F1 <- c(mean(prob_death), mean(prob_death + prob_vent1), 1)
   f_0 <- c(mean(prob_death), mean(prob_vent0), mean(prob_nothing0))
@@ -180,7 +193,7 @@ get_truth_3 <- function(n = 1e6, tx_effect = 0){
   mean_y1 <- sum(c(1,1,0)*f_1)
   mean_y0 <- sum(c(1,1,0)*f_0)
   wmean_truth <- mean_y1 - mean_y0
-  
+
   return(list(weighted_mean = wmean_truth))
 }
 
@@ -204,7 +217,7 @@ if (args[1] == 'run') {
   for (i in (id+TASKID):(id+TASKID+STEPSIZE-1)) {
     print(paste(Sys.time(), "i:" , i))
     print(parm[i,])
-    
+
     # set seed
     set.seed(parm$seed[i])
 
@@ -318,7 +331,7 @@ if (args[1] == 'run') {
       return(c(wmean_out))
     }
 
-    out <- c(as.numeric(parm[i,]), truth$weighted_mean, 
+    out <- c(as.numeric(parm[i,]), truth$weighted_mean,
              format_out(rslt = rslt_adj),
              c(unadj_1 - unadj_0, pval))
 
@@ -331,7 +344,7 @@ if (args[1] == 'run') {
 if (args[1] == 'merge'){
   out_names <- c(
     "n", "seed", "trt_effect", "dgp",
-    "wmean_truth", 
+    "wmean_truth",
     c(t(outer(c("wmean_adj"), c("_est", "_wald_cil", "_wald_ciu",
                                                  "_wald_cover","_bca_cil","_bca_ciu",
                                                  "_bca_cover"), paste0))),
@@ -356,7 +369,7 @@ if (args[1] == 'merge'){
 
   make_output_table <- function(out, estimand = "wmean", ci, scale = TRUE){
     null_val <- 0
-    
+
     sample_size <- sort(rep(c(100, 200, 500, 1000), 6))
     est_type <- rep(c("Unadjusted", "Adjusted"), 12)
 
@@ -366,7 +379,7 @@ if (args[1] == 'merge'){
         rep(x[x$trt_effect == 1, paste0(estimand, "_truth")][1],2))
     }), use.names = FALSE)
 
-    power_col <- unlist(by(out, out$n, function(x){      
+    power_col <- unlist(by(out, out$n, function(x){
       c(mean(na.rm = TRUE, as.numeric(x$wmean_unadj_pval[x$trt_effect == 0] < 0.05)),
         mean(na.rm = TRUE, as.numeric(x[x$trt_effect == 0, paste0(estimand, "_adj_", ci, "_cil")] > null_val |
                                       x[x$trt_effect == 0, paste0(estimand, "_adj_", ci, "_ciu")] < null_val)),
@@ -405,7 +418,7 @@ if (args[1] == 'merge'){
         scale_factor * mean(na.rm = TRUE, (x[x$trt_effect == 1, paste0(estimand, "_unadj_est")] - x[x$trt_effect == 1, paste0(estimand, "_truth")])),
         scale_factor * mean(na.rm = TRUE, (x[x$trt_effect == 1, paste0(estimand, "_adj_est")] - x[x$trt_effect == 1, paste0(estimand, "_truth")])))
     }), use.names = FALSE)
-    
+
     var_col <- unlist(by(out, out$n, function(x){
       if(scale){
         scale_factor <- x$n[1]
@@ -438,11 +451,11 @@ if (args[1] == 'merge'){
   }
 
   # BCA
-  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
   # WALD
-  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
 
@@ -453,11 +466,11 @@ if (args[1] == 'merge'){
   }
 
   # BCA
-  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[2]], digits = c(0,0,rep(3,7))),
       include.rownames = FALSE,
       hline.after = c(4, 8, 12))
   # WALD
-  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))), 
+  print(xtable(tab_list_1[[1]], digits = c(0,0,rep(3,7))),
         include.rownames = FALSE,
         hline.after = c(4, 8, 12))
 }
