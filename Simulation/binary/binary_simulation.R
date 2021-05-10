@@ -1,6 +1,6 @@
 #! /usr/bin/env Rscript
 
-PARALLEL <- TRUE
+PARALLEL <- FALSE
 
 # get environment variables
 if(PARALLEL){
@@ -17,8 +17,8 @@ if(PARALLEL){
     stop("Not enough arguments. Please use args 'listsize', 'prepare', 'run <itemsize>' or 'merge'")
   }
 } else {
-  STEPSIZE <- 2
-  TASKID <- 1
+  STEPSIZE <- 1
+  TASKID <- 8970
   args <- c("run", 2)
 }
 
@@ -41,6 +41,7 @@ library(drord)
 
 # function to make data to match hospitalizedControlArmDistributionsByAgeGroup
 make_data_1 <- function(n, tx_effect = 0){
+
   unif_var <- runif(n)
   age_grp <- as.numeric(cut(unif_var, c(0, 0.003848326, 0.192681847, 0.354730472, 0.520380178, 0.745410702, 0.888355056, 1), include.lowest = TRUE))
 
@@ -249,7 +250,7 @@ if (args[1] == 'run') {
       if(parm$trt_effect[i] == 0){
         tx_eff <- 0
       }else{
-        tx_eff <- get_tx_eff(parm$n[i])
+        tx_eff <- get_tx_eff(parm$n[i], trt_effect = parm$trt_effect[i])
       }
       dat <- make_data_1(n = parm$n[i], tx_effect = tx_eff)
 
@@ -286,7 +287,7 @@ if (args[1] == 'run') {
       if(parm$trt_effect[i] == 0){
         tx_eff <- 0
       }else{
-        tx_eff <- get_tx_eff(parm$n[i])
+        tx_eff <- get_tx_eff(parm$n[i], trt_effect = parm$trt_effect[i])
       }
       dat <- make_data_3(n = parm$n[i], tx_effect = tx_eff)
 
