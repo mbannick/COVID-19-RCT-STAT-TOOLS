@@ -18,8 +18,8 @@ if(PARALLEL){
   }
 } else {
   STEPSIZE <- 1
-  TASKID <- 8970
-  args <- c("run", 2)
+  TASKID <- 19311
+  args <- c("merge")
 }
 
 ##############################################
@@ -356,6 +356,9 @@ if (args[1] == 'merge'){
 
   rslt <- matrix(NA, nrow = nrow(parm), ncol = n_out)
   for(i in 1:nrow(parm)){
+    if(i %% 10 == 0){
+        print(i)
+    }
     tmp <- tryCatch({
       load(paste0(save_dir, "fit_binary_", i, ".RData"))
       out
@@ -367,6 +370,7 @@ if (args[1] == 'merge'){
 
   out <- data.frame(rslt)
   colnames(out) <- out_names
+  write.csv(out, paste0(save_dir, "RESULTS.csv"))
 
   make_output_table <- function(out, estimand = "wmean", ci, scale = TRUE){
     null_val <- 0
