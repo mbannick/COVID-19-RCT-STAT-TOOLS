@@ -1,6 +1,6 @@
 #! /usr/bin/env Rscript
 
-PARALLEL <- FALSE
+PARALLEL <- TRUE
 
 if(PARALLEL){
   # get environment variables
@@ -18,7 +18,7 @@ if(PARALLEL){
   }
 } else {
   STEPSIZE <- 2
-  TASKID <- 1
+  TASKID <- 19312
   args <- c("run", 2)
 }
 
@@ -26,7 +26,7 @@ if(PARALLEL){
 ##############################################
 # !!!! set a directory for output to save !!!!
 ##############################################
-save_dir <- "~/"
+save_dir <- "/fh/scratch/delete30/gao_f/mbannick/output/"
 
 # parameters
 ns <- c(100, 200, 500, 1000)
@@ -75,7 +75,6 @@ make_data_1 <- function(n, tx_effect = 0){
 }
 
 get_truth_1 <- function(n = 1e6, tx_effect){
-  browser()
   unif_var <- runif(n)
   age_grp <- as.numeric(cut(unif_var, c(0, 0.003848326, 0.192681847, 0.354730472, 0.520380178, 0.745410702, 0.888355056, 1), include.lowest = TRUE))
 
@@ -272,7 +271,7 @@ if (args[1] == 'run') {
       if(parm$trt_effect[i] == 0){
         tx_eff <- 0
       }else{
-        tx_eff <- get_tx_eff(parm$n[i])
+        tx_eff <- get_tx_eff(parm$n[i], trt_effect = parm$trt_effect[i])
       }
       dat <- make_data_1(n = parm$n[i], tx_effect = tx_eff)
 
@@ -308,7 +307,7 @@ if (args[1] == 'run') {
       if(parm$trt_effect[i] == 0){
         tx_eff <- 0
       }else{
-        tx_eff <- get_tx_eff(parm$n[i])
+        tx_eff <- get_tx_eff(parm$n[i], trt_effect = parm$trt_effect[i])
       }
       dat <- make_data_3(n = parm$n[i], tx_effect = tx_eff)
 
@@ -424,7 +423,6 @@ if (args[1] == 'merge'){
     out$logodds_adj_est[out$logodds_adj_est == -Inf] <- NA
     out$logodds_adj_est[out$logodds_adj_est == Inf] <- NA
     out$logodds_adj_est[out$logodds_adj_est == NaN] <- NA
-    browser()
     sample_size <- sort(rep(c(100, 200, 500, 1000), 6))
     est_type <- rep(c("Unadjusted", "Adjusted"), 12)
 
