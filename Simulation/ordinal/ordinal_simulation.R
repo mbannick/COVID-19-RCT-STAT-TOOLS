@@ -408,6 +408,7 @@ if (args[1] == 'merge'){
 
   out <- data.frame(rslt)
   colnames(out) <- out_names
+  write.csv(out, paste0(save_dir, "RESULTS.csv"))
 
   make_output_table <- function(out, estimand, ci, scale = TRUE){
     null_val <- if(estimand == "mannwhitney"){
