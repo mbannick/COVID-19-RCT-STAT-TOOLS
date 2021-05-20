@@ -3,7 +3,7 @@ rm(list = ls())
 ## install_github('idiazst/survtmlerct')
 library(dplyr)
 library(lubridate)
-library(survtmlerct)
+library(survtmlerct, lib.loc="~/r-libs")
 library(glm2)
 
 load('dat.rds')

@@ -7,6 +7,7 @@
 #SBATCH --array=1-500
 echo "$SLURM_ARRAY_TASK_ID"
 
-source ~/.bashrc
-spack load /mjrrusu
+# source ~/.bashrc
+# spack load /mjrrusu
+ml R
 R CMD BATCH simula.r simula.rout
