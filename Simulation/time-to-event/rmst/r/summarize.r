@@ -5,23 +5,25 @@ library(ggthemes)
 library(grid)
 library(survtmlerct)
 
+setwd("Simulation/time-to-event/rmst/r")
 source('utils.r')
 source('code.r')
 
-res <- list()
-for(i in 1:500){
-    ss <- try(load(paste0('../out/out', i, '.rda')))
-    if(inherits(ss, 'try-error')) {
-        cat('error ', i)
-    } else {
-        rtemp <- get(paste0('r', i))
-        res <- c(res, rtemp)
-    }
-}
+# res <- list()
+# for(i in 1:500){
+#     ss <- try(load(paste0('../out/out', i, '.rda')))
+#     if(inherits(ss, 'try-error')) {
+#         cat('error ', i)
+#     } else {
+#         rtemp <- get(paste0('r', i))
+#         res <- c(res, rtemp)
+#     }
+# }
+#
+# table(sapply(res, length))
 
-table(sapply(res, length))
-
-out <- rbindlist(res[sapply(res, length) != 1])
+# out <- rbindlist(res[sapply(res, length) != 1])
+load("~/Documents/FileZilla/BIOST572/est-rmst.rds")
 
 out <- out %>% filter(abs(estimate) < 2, se < 10)
 

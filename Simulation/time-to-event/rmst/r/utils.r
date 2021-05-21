@@ -14,9 +14,9 @@ gendata <- function(data, n, eff) {
 }
 
 true <- function(data, eff, tau) {
-    ## df <- gendata(data, n, eff)
-    ## dlong <- transformData(df, 1)
-    ## unad <- unadjusted(dlong, tau)
-    ## return(diff(unad$km))
+    # df <- gendata(data, n, eff)
+    # dlong <- transformData(df, 1)
+    # unad <- unadjusted_rmst(dlong, tau)
+    # return(diff(unad$rmst))
     mean(pmin(dat$T + round(rchisq(length(dat$T), df = eff), 0), tau) - pmin(dat$T, tau))
 }
